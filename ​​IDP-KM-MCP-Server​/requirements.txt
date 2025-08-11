@@ -1,0 +1,12 @@
+# 核心MCP依赖
+mcp>=1.12.3
+fastmcp
+
+# 文档处理依赖
+PyPDF2>=3.0.0
+python-docx>=0.8.11
+
+# 中文文本处理（可选）
+jieba>=0.42.1
+
+# 注意：sqlite3, pathlib, hashlib 是Python标准库，无需安装

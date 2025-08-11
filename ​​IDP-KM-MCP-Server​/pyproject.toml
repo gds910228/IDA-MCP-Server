@@ -1,0 +1,17 @@
+[project]
+name = "idp-km-mcp-server"
+version = "0.1.0"
+description = "智能文档处理与知识管理MCP服务器"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "mcp>=1.12.3",
+    "fastmcp",
+    "PyPDF2>=3.0.0",
+    "python-docx>=0.8.11",
+    "jieba>=0.42.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
