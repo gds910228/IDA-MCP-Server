@@ -58,7 +58,7 @@ except ImportError:
 mcp = FastMCP("DocumentProcessor")
 
 # 数据库初始化
-DB_PATH = "documents.db"
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "documents.db")
 
 def init_database():
     """初始化数据库"""
@@ -206,6 +206,12 @@ def parse_document(filepath: str, extract_keywords: bool = True, generate_summar
         extract_keywords: 是否提取关键词
         generate_summary: 是否生成摘要
     """
+    # 如果是相对路径，转换为绝对路径
+    if not os.path.isabs(filepath):
+        # 获取脚本所在目录
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        filepath = os.path.join(script_dir, filepath)
+    
     if not os.path.exists(filepath):
         return {"error": f"File not found: {filepath}"}
     
@@ -230,7 +236,7 @@ def parse_document(filepath: str, extract_keywords: bool = True, generate_summar
         }
     
     # 根据文件类型提取文本
-    if file_extension == '.txt':
+    if file_extension in ['.txt', '.md']:
         content = DocumentProcessor.extract_text_from_txt(filepath)
     elif file_extension == '.pdf':
         content = DocumentProcessor.extract_text_from_pdf(filepath)
@@ -366,13 +372,23 @@ def add_knowledge_entry(title: str, content: str, category: str = "", tags: Opti
     
     Args:
         title: 知识条目标题
-        content: 知识内容
+        content: 知识内容（必填）
         category: 分类
         tags: 标签列表
         source_doc_id: 来源文档ID
     """
     if tags is None:
         tags = []
+
+    # 基本参数校验：避免因 content 缺失/为空而导致上层解析失败时无提示
+    if not isinstance(title, str) or not title.strip():
+        return {"error": "Invalid parameter: title is required and must be a non-empty string"}
+    if not isinstance(content, str) or not content.strip():
+        # 明确返回结构化错误，提示正确用法
+        return {
+            "error": "Invalid parameter: content is required and must be a non-empty string",
+            "hint": "Please provide both title and content. Example: add_knowledge_entry(title='知识图谱构建', content='知识图谱构建的步骤与方法...')"
+        }
     
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -381,23 +397,26 @@ def add_knowledge_entry(title: str, content: str, category: str = "", tags: Opti
         cursor.execute('''
             INSERT INTO knowledge_base (title, content, category, tags, source_doc_id, created_at)
             VALUES (?, ?, ?, ?, ?, ?)
-        ''', (title, content, category, json.dumps(tags), source_doc_id, datetime.now()))
+        ''', (title.strip(), content.strip(), category.strip() if isinstance(category, str) else "", json.dumps(tags), source_doc_id, datetime.now()))
         
         entry_id = cursor.lastrowid
         conn.commit()
-        conn.close()
         
         return {
             "success": True,
             "entry_id": entry_id,
-            "title": title,
-            "category": category,
-            "tags": tags
+            "title": title.strip(),
+            "category": category.strip() if isinstance(category, str) else "",
+            "tags": tags or []
         }
         
     except Exception as e:
-        conn.close()
         return {"error": f"Database error: {str(e)}"}
+    finally:
+        try:
+            conn.close()
+        except:
+            pass
 
 @mcp.tool()
 def search_knowledge_base(query: str, category: str = "") -> List[Dict[str, Any]]:
@@ -469,29 +488,38 @@ def list_documents() -> List[Dict[str, Any]]:
 @mcp.tool()
 def get_statistics() -> Dict[str, Any]:
     """获取系统统计信息"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
-    # 文档统计
-    cursor.execute("SELECT COUNT(*) FROM documents")
-    doc_count = cursor.fetchone()[0]
-    
-    # 知识库统计
-    cursor.execute("SELECT COUNT(*) FROM knowledge_base")
-    kb_count = cursor.fetchone()[0]
-    
-    # 分类统计
-    cursor.execute("SELECT category, COUNT(*) FROM knowledge_base GROUP BY category")
-    category_stats = dict(cursor.fetchall())
-    
-    conn.close()
-    
-    return {
-        "total_documents": doc_count,
-        "total_knowledge_entries": kb_count,
-        "categories": category_stats,
-        "database_path": DB_PATH
-    }
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        # 文档统计
+        cursor.execute("SELECT COUNT(*) FROM documents")
+        doc_count = cursor.fetchone()[0]
+        
+        # 知识库统计
+        cursor.execute("SELECT COUNT(*) FROM knowledge_base")
+        kb_count = cursor.fetchone()[0]
+        
+        # 分类统计
+        cursor.execute("SELECT category, COUNT(*) FROM knowledge_base GROUP BY category")
+        category_stats = dict(cursor.fetchall())
+        
+        return {
+            "total_documents": doc_count,
+            "total_knowledge_entries": kb_count,
+            "categories": category_stats,
+            "database_path": DB_PATH
+        }
+    except Exception as e:
+        # 返回可见错误信息，方便客户端定位
+        return {"error": f"Statistics query failed: {str(e)}", "database_path": DB_PATH}
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except:
+                pass
 
 # 资源定义
 @mcp.resource("document://{document_id}")
