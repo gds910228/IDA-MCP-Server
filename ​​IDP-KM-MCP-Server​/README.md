@@ -1,135 +1,171 @@
 # 智能文档处理与知识管理MCP服务器
 
-这是一个基于MCP协议的智能文档处理与知识管理服务，提供文档解析、内容提取、知识管理等功能。
+一个基于 Model Context Protocol (MCP) 的智能文档处理与知识管理服务器，支持多种文档格式的解析、内容提取、关键词提取、摘要生成和知识库管理。
 
-## 功能特性
+## 🚀 功能特性
 
-### 🔍 文档处理
-- **多格式支持**: TXT, PDF, DOCX文档解析
-- **智能提取**: 自动提取文档内容、关键词、摘要
-- **去重处理**: 基于文件哈希的重复文档检测
+- 📄 **多格式文档解析**：支持 TXT、PDF、DOCX 文档格式
+- 🔍 **智能关键词提取**：基于 jieba 分词的中文关键词提取
+- 📝 **自动摘要生成**：智能生成文档摘要
+- 📚 **知识库管理**：结构化存储和管理知识条目
+- 🔎 **智能搜索**：支持内容、关键词、文件名多维度搜索
+- 💾 **SQLite 数据库**：轻量级本地数据存储
 
-### 📚 知识管理
-- **知识库**: 结构化存储知识条目
-- **分类管理**: 支持分类和标签系统
-- **智能搜索**: 多维度搜索功能
+## 📦 安装依赖
 
-### 🔧 核心工具
-
-#### 文档处理工具
-- `parse_document`: 解析文档并提取内容
-- `get_document_content`: 获取文档完整内容
-- `list_documents`: 列出所有文档
-- `search_documents`: 搜索文档
-
-#### 知识管理工具
-- `add_knowledge_entry`: 添加知识库条目
-- `search_knowledge_base`: 搜索知识库
-- `get_statistics`: 获取系统统计信息
-
-## 安装与使用
-
-### 1. 安装依赖
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. 启动服务器
+### 依赖包说明
+
+- `mcp>=1.12.3` - Model Context Protocol 核心库
+- `fastmcp` - 快速 MCP 服务器框架
+- `PyPDF2>=3.0.0` - PDF 文档处理
+- `python-docx>=0.8.11` - Word 文档处理
+- `jieba>=0.42.1` - 中文分词和关键词提取
+
+## 🛠️ 使用方法
+
+### 启动服务器
+
 ```bash
 python document_mcp.py
 ```
 
-### 3. 使用示例
+或使用启动脚本：
 
-#### 解析文档
-```python
-# 解析PDF文档
-result = parse_document("example.pdf", extract_keywords=True, generate_summary=True)
+```bash
+python start_server.py
 ```
 
-#### 搜索文档
-```python
-# 按内容搜索
-documents = search_documents("人工智能", search_type="content")
+### MCP 配置
 
-# 按文件名搜索
-documents = search_documents("报告", search_type="filename")
+在你的 MCP 客户端配置文件中添加：
+
+```json
+{
+  "mcpServers": {
+    "mcp-idp-km": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "python",
+      "args": [
+        "path/to/document_mcp.py"
+      ]
+    }
+  }
+}
 ```
 
-#### 添加知识条目
+## 🔧 可用工具
+
+### 文档处理工具
+
+- `parse_document` - 解析文档并提取内容
+- `search_documents` - 搜索文档
+- `get_document_content` - 获取文档完整内容
+- `list_documents` - 列出所有文档
+
+### 知识库管理工具
+
+- `add_knowledge_entry` - 添加知识库条目
+- `search_knowledge_base` - 搜索知识库
+- `get_statistics` - 获取系统统计信息
+
+## 📊 数据库结构
+
+### documents 表
+- `id` - 文档ID
+- `filename` - 文件名
+- `filepath` - 文件路径
+- `file_hash` - 文件哈希值
+- `content` - 文档内容
+- `summary` - 文档摘要
+- `keywords` - 关键词（JSON格式）
+- `tags` - 标签（JSON格式）
+- `created_at` - 创建时间
+- `updated_at` - 更新时间
+
+### knowledge_base 表
+- `id` - 条目ID
+- `title` - 标题
+- `content` - 内容
+- `category` - 分类
+- `tags` - 标签（JSON格式）
+- `source_doc_id` - 来源文档ID
+- `created_at` - 创建时间
+
+## 🌟 使用示例
+
+### 解析文档
 ```python
-# 添加知识库条目
-result = add_knowledge_entry(
-    title="AI发展趋势",
-    content="人工智能技术正在快速发展...",
-    category="技术",
-    tags=["AI", "技术趋势"]
+# 通过 MCP 客户端调用
+result = parse_document(
+    filepath="example.pdf",
+    extract_keywords=True,
+    generate_summary=True
 )
 ```
 
-## 数据存储
+### 搜索文档
+```python
+# 搜索包含特定内容的文档
+documents = search_documents(
+    query="人工智能",
+    search_type="content"
+)
+```
 
-系统使用SQLite数据库存储文档和知识库数据：
-- `documents.db`: 主数据库文件
-- `documents`: 文档信息表
-- `knowledge_base`: 知识库条目表
+### 添加知识条目
+```python
+# 添加新的知识库条目
+entry = add_knowledge_entry(
+    title="机器学习基础",
+    content="机器学习是人工智能的一个分支...",
+    category="技术",
+    tags=["AI", "机器学习", "算法"]
+)
+```
 
-## 支持的文件格式
+## 🔍 资源访问
 
-- **TXT**: 纯文本文件（UTF-8/GBK编码）
-- **PDF**: PDF文档（需要PyPDF2）
-- **DOCX**: Word文档（需要python-docx）
+服务器提供以下资源模板：
 
-## API接口
+- `document://{document_id}` - 访问特定文档
+- `knowledge://{entry_id}` - 访问特定知识库条目
 
-### 工具接口
-所有工具都通过MCP协议暴露，支持：
-- 参数验证
-- 错误处理
-- 结果格式化
+## 📝 开发说明
 
-### 资源接口
-- `document://{document_id}`: 获取文档资源
-- `knowledge://{entry_id}`: 获取知识库条目资源
+### 项目结构
+```
+├── document_mcp.py      # 主服务器文件
+├── start_server.py      # 启动脚本
+├── requirements.txt     # 依赖配置
+├── pyproject.toml      # 项目配置
+├── documents.db        # SQLite 数据库（运行时生成）
+└── README.md           # 项目说明
+```
 
-## 扩展功能
+### 扩展功能
 
-### 可选依赖
-- `jieba`: 中文分词和关键词提取
-- `PyPDF2`: PDF文档处理
-- `python-docx`: Word文档处理
+你可以通过以下方式扩展功能：
 
-### 自定义扩展
-系统设计支持：
-- 新文档格式处理器
-- 自定义关键词提取算法
-- 高级摘要生成
-- 多语言支持
+1. 添加新的文档格式支持
+2. 集成更高级的NLP处理
+3. 添加向量化搜索
+4. 集成外部知识库
 
-## 性能特性
+## 🤝 贡献
 
-- **增量处理**: 基于文件哈希的重复检测
-- **轻量级**: SQLite数据库，无需额外服务
-- **可扩展**: 模块化设计，易于扩展
+欢迎提交 Issue 和 Pull Request！
 
-## 使用场景
-
-1. **企业文档管理**: 处理和管理企业内部文档
-2. **学术研究**: 论文和资料的整理分析
-3. **知识库构建**: 构建结构化知识库
-4. **内容分析**: 文档内容的智能分析和提取
-
-## 技术架构
-
-- **MCP协议**: 标准化的AI工具接口
-- **FastMCP**: 快速MCP服务器框架
-- **SQLite**: 轻量级数据库存储
-- **Python生态**: 丰富的文档处理库
-
-## 贡献指南
-
-欢迎提交Issue和Pull Request来改进这个项目！
-
-## 许可证
+## 📄 许可证
 
 MIT License
+
+## 🔗 相关链接
+
+- [Model Context Protocol](https://modelcontextprotocol.io/)
+- [FastMCP](https://github.com/jlowin/fastmcp)
