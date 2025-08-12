@@ -6,6 +6,23 @@ import ast
 import os
 import subprocess
 import json
+import re
+from typing import Dict, List, Any, Optional
+from pathlib import Path
+import logging
+"""
+代码分析工具模块
+"""
+
+"""
+代码分析工具模块
+"""
+
+import ast
+import os
+import subprocess
+import json
+import re
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 
@@ -16,10 +33,128 @@ class CodeAnalyzer:
     def __init__(self):
         self.supported_extensions = {'.py', '.js', '.ts', '.jsx', '.tsx'}
     
+    def _resolve_file_path(self, file_path: str) -> str:
+        """解析文件路径，支持相对路径和绝对路径"""
+        if os.path.isabs(file_path):
+            return file_path
+        
+        # 获取当前工作目录
+        cwd = os.getcwd()
+        
+        # 定义可能的项目根目录（按优先级排序）
+        possible_project_roots = [
+            # 1. 已知的项目路径（最高优先级）
+            r'D:\WorkProjects\AI\MCP\IDA-MCP-Server',
+            r'd:\WorkProjects\AI\MCP\IDA-MCP-Server',
+            # 2. 从当前目录向上查找包含main.py的目录
+            self._find_project_root_with_main_py(cwd),
+            # 3. 用户目录下的项目路径
+            os.path.join(os.path.expanduser('~'), 'WorkProjects', 'AI', 'MCP', 'IDA-MCP-Server'),
+            # 4. 当前工作目录
+            cwd
+        ]
+        
+        # 找到第一个有效的项目根目录
+        project_root = None
+        for root in possible_project_roots:
+            if root and os.path.exists(root):
+                # 验证这确实是一个项目目录（包含main.py或src目录）
+                if (os.path.exists(os.path.join(root, 'main.py')) or 
+                    os.path.exists(os.path.join(root, 'src')) or
+                    root == cwd):
+                    project_root = root
+                    break
+        
+        # 如果还是没找到，使用当前工作目录
+        if not project_root:
+            project_root = cwd
+        
+        # 尝试多种路径解析方式（按优先级排序）
+        possible_paths = [
+            # 1. 相对于已知项目根目录
+            os.path.join(project_root, file_path),
+            # 2. 去掉开头的 "./" 或 ".\"
+            os.path.join(project_root, file_path.lstrip('./\\')),
+            # 3. 直接使用相对路径转绝对路径（基于当前工作目录）
+            os.path.abspath(file_path),
+            # 4. 相对于当前工作目录
+            os.path.join(cwd, file_path),
+            # 5. 在项目根目录的src子目录中查找
+            os.path.join(project_root, 'src', file_path) if not file_path.startswith('src') else os.path.join(project_root, file_path),
+            # 6. 直接在项目根目录查找文件名
+            os.path.join(project_root, os.path.basename(file_path))
+        ]
+        
+        # 找到第一个存在的路径
+        for path in possible_paths:
+            if os.path.exists(path):
+                return path
+        
+        # 如果都不存在，返回基于项目根目录的路径（即使不存在，也便于调试）
+        return os.path.join(project_root, file_path)
+    
+    def _find_project_root_with_main_py(self, start_dir: str) -> Optional[str]:
+        """从指定目录向上查找包含main.py的目录"""
+        current_dir = start_dir
+        for _ in range(10):  # 最多向上查找10级目录
+            if os.path.exists(os.path.join(current_dir, 'main.py')):
+                return current_dir
+            parent_dir = os.path.dirname(current_dir)
+            if parent_dir == current_dir:  # 已到根目录
+                break
+            current_dir = parent_dir
+        return None
+    
+    def _get_debug_paths(self, file_path: str) -> List[str]:
+        """获取所有尝试的路径用于调试"""
+        cwd = os.getcwd()
+        possible_project_roots = [
+            r'D:\WorkProjects\AI\MCP\IDA-MCP-Server',
+            r'd:\WorkProjects\AI\MCP\IDA-MCP-Server',
+            self._find_project_root_with_main_py(cwd),
+            os.path.join(os.path.expanduser('~'), 'WorkProjects', 'AI', 'MCP', 'IDA-MCP-Server'),
+            cwd
+        ]
+        
+        debug_paths = []
+        for root in possible_project_roots:
+            if root:
+                debug_paths.extend([
+                    os.path.join(root, file_path),
+                    os.path.join(root, file_path.lstrip('./\\')),
+                    os.path.join(root, 'src', file_path),
+                    os.path.join(root, os.path.basename(file_path))
+                ])
+        
+        debug_paths.extend([
+            os.path.abspath(file_path),
+            os.path.join(cwd, file_path)
+        ])
+        
+        return debug_paths
+    
     def analyze_code_quality(self, file_path: str) -> Dict[str, Any]:
         """分析代码质量"""
-        if not os.path.exists(file_path):
-            return {"error": f"File not found: {file_path}"}
+        # 处理相对路径和绝对路径
+        original_path = file_path
+        resolved_path = self._resolve_file_path(file_path)
+        
+        # 添加详细的调试信息
+        debug_info = {
+            "original_path": original_path,
+            "current_working_directory": os.getcwd(),
+            "resolved_path": resolved_path,
+            "file_exists": os.path.exists(resolved_path),
+            "tried_paths": self._get_debug_paths(file_path)
+        }
+        
+        if not os.path.exists(resolved_path):
+            return {
+                "error": f"File not found: {resolved_path}",
+                **debug_info
+            }
+        
+        file_path = resolved_path
         
         file_ext = Path(file_path).suffix.lower()
         
@@ -171,7 +306,6 @@ class CodeAnalyzer:
     
     def _estimate_js_complexity(self, content: str) -> int:
         """估算JavaScript复杂度"""
-        import re
         complexity_keywords = ['if', 'else', 'while', 'for', 'switch', 'case', 'try', 'catch']
         
         complexity = 1
@@ -196,7 +330,6 @@ class CodeAnalyzer:
                 })
         
         # 检查console.log（生产环境不应该有）
-        import re
         console_logs = re.finditer(r'console\.log', content)
         for match in console_logs:
             line_num = content[:match.start()].count('\n') + 1

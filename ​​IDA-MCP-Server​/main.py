@@ -210,5 +210,31 @@ def refactor_suggestions_prompt(file_path: str, complexity_threshold: int = 10) 
 请基于代码分析结果提供切实可行的重构方案。"""
 
 if __name__ == "__main__":
-    # Start the server
-    mcp.run(transport="stdio")
+    import sys
+    import logging
+    
+    # 设置正确的工作目录
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    os.chdir(script_dir)
+    
+    # 设置日志记录
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler('mcp_server.log'),
+            logging.StreamHandler(sys.stderr)
+        ]
+    )
+    
+    logger = logging.getLogger(__name__)
+    logger.info(f"Starting IDA MCP Server in directory: {os.getcwd()}")
+    
+    try:
+        # Start the server
+        mcp.run(transport="stdio")
+    except KeyboardInterrupt:
+        logger.info("Server stopped by user")
+    except Exception as e:
+        logger.error(f"Server error: {e}")
+        sys.exit(1)
